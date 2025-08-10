@@ -5,7 +5,7 @@ require_once __DIR__ . '/../models/Usuario.php';
 class AuthController {
 
   public function login() {
-    start_session_safe();
+  start_session_safe();
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST' && isset($_SESSION['user_id'])) {
       redirect_home_by_role();
@@ -21,16 +21,32 @@ class AuthController {
       // Normaliza claves por si vienen en MAYÚSCULAS desde Oracle
       $u = is_array($user) ? array_change_key_case($user, CASE_LOWER) : null;
 
-      if ($u && isset($u['password']) && password_verify($pass, $u['password'])) {
+      // Verificación: admite hash bcrypt y (temporal) texto plano
+      $okPass = false;
+      if ($u && isset($u['password'])) {
+        $stored = (string)$u['password'];
+        $okPass = ($pass === $stored) || password_verify($pass, $stored);
+      }
+
+      if ($u && $okPass) {
         session_regenerate_id(true);
 
-        $_SESSION['user_id'] = (int)$u['id'];
+        $_SESSION['user_id'] = (int)($u['id'] ?? 0);
         $_SESSION['nombre']  = $u['nombre'] ?? '';
         $_SESSION['email']   = $u['email']  ?? '';
 
-        $rolNombre = $u['rol_nombre'] ?? null;
-        $_SESSION['rol'] = ($rolNombre === 'Administrador') ? 'admin'
-                        : (($rolNombre === 'Voluntario') ? 'voluntario' : 'usuario');
+        // --------- MAPEO DE ROL ROBUSTO ---------
+        $rolNombre = isset($u['rol_nombre']) ? trim((string)$u['rol_nombre']) : '';
+        $rolId     = isset($u['rol']) ? (int)$u['rol'] : null;
+
+        if (strcasecmp($rolNombre, 'Administrador') === 0 || $rolId === 1) {
+          $_SESSION['rol'] = 'admin';
+        } elseif (strcasecmp($rolNombre, 'Voluntario') === 0 || $rolId === 3) {
+          $_SESSION['rol'] = 'voluntario';
+        } else {
+          $_SESSION['rol'] = 'usuario';
+        }
+        // ----------------------------------------
 
         redirect_home_by_role();
       }
@@ -39,10 +55,6 @@ class AuthController {
       header('Location: login.php');
       exit();
     }
-
-    require 'app/views/partials/header.php';
-    echo '<div class="container mt-4"><div class="alert alert-info">Envia el formulario de login.</div></div>';
-    require 'app/views/partials/footer.php';
   }
 
   public function register() {
@@ -65,7 +77,7 @@ class AuthController {
     if ($apellido === '') $errors[] = 'El apellido es obligatorio.';
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = 'El correo no tiene un formato válido (ej: nombre@dominio.com).';
     if (!preg_match('/^[^@\s]+@[^@\s]+\.com$/i', $email)) $errors[] = 'El correo debe terminar en .com.';
-    if (strlen($password) < 6) $errors[] = 'La contraseña debe tener al menos 6 caracteres.';
+    if (strlen($password) < 4) $errors[] = 'La contraseña debe tener al menos 4 caracteres.';
     if ($telefono === '') $errors[] = 'El teléfono es obligatorio.';
     if (strlen($telefono) < 8) $errors[] = 'El teléfono debe tener 8 caracteres.';
 
@@ -89,7 +101,9 @@ class AuthController {
     ]);
 
     if (!$ok) {
-      $_SESSION['form_errors'] = ['No se pudo crear la cuenta. ' . $userModel->getError()];
+      $_SESSION['form_errors'] = [
+        'No se pudo crear la cuenta. Error: ' . $userModel->getError()
+      ];
       header('Location: register.php');
       return;
     }

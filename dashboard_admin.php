@@ -5,73 +5,96 @@ require_once __DIR__ . '/app/config/db.php';
 start_session_safe();
 if (empty($_SESSION['user_id'])) { header('Location: login.php'); exit; }
 
-$db = Database::connect(); // <-- PDO OCI
+$db = Database::connect(); // Puede ser PDO o OciAdapter
 
-function db_count_pdo(PDO $db, string $sql): int {
+// ==== Helpers agnósticos (PDO u OciAdapter) ====
+function db_count($db, string $sql): int {
   try {
-    $st = $db->query($sql);
-    $row = $st ? $st->fetch(PDO::FETCH_ASSOC) : null;
-    return (int)($row['c'] ?? 0);
+    if ($db instanceof OciAdapter) {
+      $res = $db->query($sql);
+      if (!$res) return 0;
+      $row = $res->fetch_assoc();
+      return (int)($row['c'] ?? 0);
+    } else { // PDO
+      $st = $db->query($sql);
+      $row = $st ? $st->fetch(PDO::FETCH_ASSOC) : null;
+      return (int)($row['c'] ?? 0);
+    }
   } catch (Throwable $e) {
-    // Log opcional: error_log($e->getMessage());
     return 0;
   }
 }
 
-$totMascotas    = db_count_pdo($db, "SELECT COUNT(*) c FROM DUCR.MASCOTAS");
-$totDisponibles = db_count_pdo($db, "SELECT COUNT(*) c FROM DUCR.MASCOTAS WHERE ESTADO = 'Disponible'");
-$totAdoptadas   = db_count_pdo($db, "SELECT COUNT(*) c FROM DUCR.MASCOTAS WHERE ESTADO = 'Adoptado'");
-$totAdopciones  = db_count_pdo($db, "SELECT COUNT(*) c FROM DUCR.ADOPCIONES");
-$totReportes    = db_count_pdo($db, "SELECT COUNT(*) c FROM DUCR.REPORTES");
+function db_fetch_all($db, string $sql): array {
+  try {
+    if ($db instanceof OciAdapter) {
+      $res = $db->query($sql);
+      return $res ? $res->fetch_all() : [];
+    } else { // PDO
+      $st = $db->query($sql);
+      return $st ? $st->fetchAll(PDO::FETCH_ASSOC) : [];
+    }
+  } catch (Throwable $e) {
+    return [];
+  }
+}
 
+// Totales
+$totMascotas    = db_count($db, "SELECT COUNT(*) c FROM DUCR.MASCOTAS");
+$totDisponibles = db_count($db, "SELECT COUNT(*) c FROM DUCR.MASCOTAS WHERE ESTADO = 'Disponible'");
+$totAdoptadas   = db_count($db, "SELECT COUNT(*) c FROM DUCR.MASCOTAS WHERE ESTADO = 'Adoptado'");
+$totAdopciones  = db_count($db, "SELECT COUNT(*) c FROM DUCR.ADOPCIONES");
+$totReportes    = db_count($db, "SELECT COUNT(*) c FROM DUCR.REPORTES");
 
+// Ojo con la Ñ: si la tabla fue creada entre comillas con Ñ, hay que citarla igual
 try {
-  $totCampanias = db_count_pdo($db, 'SELECT COUNT(*) c FROM DUCR."CAMPAÑAS"');
+  $totCampanias = db_count($db, 'SELECT COUNT(*) c FROM DUCR."CAMPAÑAS"');
 } catch (Throwable $e) {
   $totCampanias = 0;
 }
 
-
 // Mascotas recientes (TOP 5)
-$mascotasRec = [];
-try {
-  $sql = "
-    SELECT ID AS id, NOMBRE AS nombre, RAZA AS raza, ESTADO AS estado
-      FROM DUCR.MASCOTAS
-     ORDER BY ID DESC
-     FETCH FIRST 5 ROWS ONLY
-  ";
-  $mascotasRec = $db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
-} catch (Throwable $e) {
-  $mascotasRec = [];
-}
+$mascotasRec = db_fetch_all($db, "
+  SELECT ID AS id, NOMBRE AS nombre, RAZA AS raza, ESTADO AS estado
+    FROM DUCR.MASCOTAS
+   ORDER BY ID DESC
+   FETCH FIRST 5 ROWS ONLY
+");
 
 // Adopciones recientes (TOP 5)
-$adopRec = [];
-try {
-  $sql = "
-    SELECT A.ID AS id,
-           -- Fecha formateada de forma estable (YYYY-MM-DD HH24:MI:SS)
-           TO_CHAR(A.FECHA, 'YYYY-MM-DD HH24:MI:SS') AS fecha,
-           U.NOMBRE AS usuario,
-           M.NOMBRE AS mascota
-      FROM DUCR.ADOPCIONES A
-      JOIN DUCR.USUARIOS   U ON U.ID = A.USUARIO
-      JOIN DUCR.MASCOTAS   M ON M.ID = A.MASCOTA
-     ORDER BY A.ID DESC
-     FETCH FIRST 5 ROWS ONLY
-  ";
-  $adopRec = $db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
-} catch (Throwable $e) {
-  $adopRec = [];
-}
+$adopRec = db_fetch_all($db, "
+  SELECT A.ID AS id,
+         TO_CHAR(A.FECHA, 'YYYY-MM-DD HH24:MI:SS') AS fecha,
+         U.NOMBRE AS usuario,
+         M.NOMBRE AS mascota
+    FROM DUCR.ADOPCIONES A
+    JOIN DUCR.USUARIOS   U ON U.ID = A.USUARIO
+    JOIN DUCR.MASCOTAS   M ON M.ID = A.MASCOTA
+   ORDER BY A.ID DESC
+   FETCH FIRST 5 ROWS ONLY
+");
+
+$totObservacion = db_count(
+  $db,
+  "SELECT COUNT(*) c
+     FROM DUCR.MASCOTAS
+    WHERE UPPER(ESTADO) IN ('EN OBSERVACION','EN OBSERVACIÓN')"
+);
+
+$totTratamiento = db_count(
+  $db,
+  "SELECT COUNT(*) c
+     FROM DUCR.MASCOTAS
+    WHERE UPPER(ESTADO) = 'EN TRATAMIENTO'"
+);
+
 
 include __DIR__ . '/app/views/partials/header.php';
 ?>
 <div class="container py-4">
   <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
     <div>
-      <h2 class="mb-1">Panel de <?= htmlspecialchars($_SESSION['nombre']) ?></h2>
+      <h2 class="mb-1">Panel de <?= htmlspecialchars($_SESSION['nombre'] ?? '') ?></h2>
       <p class="text-muted mb-0">Resumen y accesos de gestión.</p>
     </div>
   </div>
@@ -93,6 +116,18 @@ include __DIR__ . '/app/views/partials/header.php';
       <div class="card shadow-sm border-0 h-100"><div class="card-body">
         <div class="display-4 mb-1"><?= $totAdoptadas ?></div>
         <div class="text-muted">Mascotas Adoptadas</div>
+      </div></div>
+    </div>
+    <div class="col-md-3 mb-3">
+    <div class="card shadow-sm border-0 h-100"><div class="card-body">
+      <div class="display-4 mb-1"><?= $totObservacion ?></div>
+      <div class="text-muted">En observación</div>
+    </div></div>
+    </div>
+    <div class="col-md-3 mb-3">
+      <div class="card shadow-sm border-0 h-100"><div class="card-body">
+        <div class="display-4 mb-1"><?= $totTratamiento ?></div>
+        <div class="text-muted">En tratamiento</div>
       </div></div>
     </div>
     <div class="col-md-3 mb-3">

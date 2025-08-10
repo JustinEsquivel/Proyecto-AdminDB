@@ -5,14 +5,25 @@ require_once __DIR__ . '/app/models/Mascota.php';
 
 start_session_safe();
 
-$db = Database::connect(); // <-- PDO OCI
+$db = Database::connect(); // Puede ser PDO (oci:...) u OciAdapter
 
-// Helper de conteo para PDO Oracle
-function db_count_pdo(PDO $db, string $sql): int {
+/**
+ * Cuenta registros soportando PDO y tu OciAdapter.
+ */
+function db_count_any($db, string $sql): int {
   try {
-    $st = $db->query($sql);
-    $row = $st ? $st->fetch(PDO::FETCH_ASSOC) : null;
-    return (int)($row['c'] ?? 0);
+    if ($db instanceof PDO) {
+      $st  = $db->query($sql);
+      $row = $st ? $st->fetch(PDO::FETCH_ASSOC) : null;
+      return (int)($row['c'] ?? 0);
+    }
+    if ($db instanceof OciAdapter) {
+      $res = $db->query($sql);            // OciResult
+      if (!$res) return 0;
+      $row = $res->fetch_assoc();         // ['c' => N]
+      return (int)($row['c'] ?? 0);
+    }
+    return 0;
   } catch (Throwable $e) {
     // error_log($e->getMessage());
     return 0;
@@ -20,19 +31,18 @@ function db_count_pdo(PDO $db, string $sql): int {
 }
 
 /* === Totales (usar esquema DUCR) === */
-$totMascotas    = db_count_pdo($db, "SELECT COUNT(*) c FROM DUCR.MASCOTAS");
-$totAdopciones  = db_count_pdo($db, "SELECT COUNT(*) c FROM DUCR.ADOPCIONES");
-$totVoluntarios = db_count_pdo($db, "SELECT COUNT(*) c FROM DUCR.VOLUNTARIOS WHERE ESTADO = 'Activo'");
+$totMascotas    = db_count_any($db, "SELECT COUNT(*) c FROM DUCR.MASCOTAS");
+$totAdopciones  = db_count_any($db, "SELECT COUNT(*) c FROM DUCR.ADOPCIONES");
+$totVoluntarios = db_count_any($db, "SELECT COUNT(*) c FROM DUCR.VOLUNTARIOS WHERE ESTADO = 'Activo'");
 
-
+/* OJO: la tabla lleva una Ñ. Conservar comillas dobles. */
 try {
-  $totCampanias = db_count_pdo($db, 'SELECT COUNT(*) c FROM DUCR."CAMPAÑAS" WHERE ESTADO = \'Activa\'');
+$totCampanias = db_count_any($db, "SELECT COUNT(*) c FROM DUCR.\"CAMPAÑAS\" WHERE ESTADO = 'Activa'");
 } catch (Throwable $e) {
-  // Si falla por el nombre, déjalo en 0 o cambia por DUCR.CAMPANIAS si creaste el sinónimo.
   $totCampanias = 0;
 }
 
-// Lista de disponibles (usa el modelo ya adaptado a Oracle)
+/* Lista de mascotas disponibles */
 $mModel      = new Mascota();
 $disponibles = $mModel->disponibles(9);
 
@@ -97,5 +107,9 @@ include 'app/views/partials/header.php';
     </div>
   </div>
 </div>
+
+<style>
+.card-img-top{width:100%;height:220px;object-fit:cover;background:#f3f5f7}
+</style>
 
 <?php include 'app/views/partials/footer.php'; ?>

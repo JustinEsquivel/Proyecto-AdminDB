@@ -1,4 +1,32 @@
 <?php include __DIR__ . '/../partials/header.php'; ?>
+
+<?php
+// Normalizar campos que podrían venir como OCILob desde Oracle
+$nombre = $m['nombre'] ?? '';
+$raza   = $m['raza']   ?? '';
+$edad   = (int)($m['edad'] ?? 0);
+$estado = $m['estado'] ?? 'Disponible';
+
+$descripcion = $m['descripcion'] ?? '';
+if ($descripcion instanceof OCILob) {
+  $descripcion = $descripcion->load();
+}
+
+$foto = $m['foto'] ?? '';
+if ($foto instanceof OCILob) {
+  $foto = $foto->load();
+}
+$src = ($foto !== '' ? $foto : 'img/placeholder.jpg');
+
+$idMascota = (int)($m['id'] ?? 0);
+$rol = $_SESSION['rol'] ?? 'usuario';
+
+// Badge segun estado
+$badgeClass = 'badge-secondary';
+if ($estado === 'Disponible') $badgeClass = 'badge-success';
+elseif ($estado === 'En Proceso') $badgeClass = 'badge-warning';
+?>
+
 <div class="container mt-4" style="max-width: 960px;">
 
   <div class="card shadow-sm">
@@ -11,36 +39,34 @@
         <tbody>
           <tr>
             <th class="w-25 text-muted">Nombre:</th>
-            <td><?= htmlspecialchars($m['nombre'] ?? '') ?></td>
+            <td><?= htmlspecialchars($nombre, ENT_QUOTES, 'UTF-8') ?></td>
           </tr>
           <tr>
             <th class="text-muted">Raza:</th>
-            <td><?= htmlspecialchars($m['raza'] ?? '') ?></td>
+            <td><?= htmlspecialchars($raza, ENT_QUOTES, 'UTF-8') ?></td>
           </tr>
           <tr>
             <th class="text-muted">Edad:</th>
-            <td><?= (int)($m['edad'] ?? 0) ?></td>
+            <td><?= $edad ?></td>
           </tr>
           <tr>
             <th class="text-muted">Estado:</th>
             <td>
-              <?php $estado = $m['estado'] ?? 'Disponible'; ?>
-              <span class="badge <?= ($estado==='Disponible'?'badge-success':($estado==='En Proceso'?'badge-warning':'badge-secondary')) ?>">
-                <?= htmlspecialchars($estado) ?>
+              <span class="badge <?= $badgeClass ?>">
+                <?= htmlspecialchars($estado, ENT_QUOTES, 'UTF-8') ?>
               </span>
             </td>
           </tr>
           <tr>
             <th class="align-top text-muted">Descripción:</th>
-            <td><?= nl2br(htmlspecialchars($m['descripcion'] ?? '')) ?></td>
+            <td><?= nl2br(htmlspecialchars($descripcion, ENT_QUOTES, 'UTF-8')) ?></td>
           </tr>
           <tr>
             <th class="text-muted align-top">Foto:</th>
             <td>
-              <?php $src = $m['foto'] ?: 'img/placeholder.jpg'; ?>
               <img
-                src="<?= htmlspecialchars($src) ?>"
-                alt="Foto de <?= htmlspecialchars($m['nombre'] ?? 'Mascota') ?>"
+                src="<?= htmlspecialchars($src, ENT_QUOTES, 'UTF-8') ?>"
+                alt="Foto de <?= htmlspecialchars($nombre ?: 'Mascota', ENT_QUOTES, 'UTF-8') ?>"
                 class="img-fluid rounded border"
                 style="max-width: 320px;"
                 onerror="this.onerror=null;this.src='img/placeholder.jpg';">
@@ -51,12 +77,12 @@
     </div>
 
     <div class="card-footer bg-white">
-      <?php if (($_SESSION['rol'] ?? 'usuario') === 'admin' || ($_SESSION['rol'] ?? '') === 'voluntario'): ?>
-        <a href="mascotas.php?action=edit&id=<?= (int)($m['id'] ?? 0) ?>" class="btn btn-warning">Editar</a>
+      <?php if ($rol === 'admin' || $rol === 'voluntario'): ?>
+        <a href="mascotas.php?action=edit&id=<?= $idMascota ?>" class="btn btn-warning">Editar</a>
         <a href="mascotas.php" class="btn btn-secondary ml-2">Volver</a>
       <?php else: ?>
-        <?php if (($m['estado'] ?? '') === 'Disponible'): ?>
-          <a href="adopciones.php?action=create&mascota_id=<?= (int)($m['id'] ?? 0) ?>" class="btn btn-success">
+        <?php if ($estado === 'Disponible'): ?>
+          <a href="adopciones.php?action=create&mascota_id=<?= $idMascota ?>" class="btn btn-success">
             <i class="fas fa-heart"></i> Adoptar
           </a>
         <?php endif; ?>
@@ -66,4 +92,5 @@
   </div>
 
 </div>
+
 <?php include __DIR__ . '/../partials/footer.php'; ?>
