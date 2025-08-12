@@ -1,0 +1,187 @@
+<?php
+require_once __DIR__ . '/BaseModel.php';
+
+class Reportes extends BaseModel {
+
+  /** Lista completa con propietario */
+  public function all(): array {
+    try {
+      $sql = "
+        SELECT
+          r.ID        AS id,
+          r.MASCOTA   AS mascota,         
+          r.PROVINCIA AS provincia,
+          r.CANTON    AS canton,
+          r.DISTRITO  AS distrito,
+          r.DETALLES  AS detalles,
+          r.FECHA     AS fecha,         ,
+          r.USUARIO   AS usuario,
+          (NVL(u.NOMBRE,'') || ' ' || NVL(u.APELLIDO,'')) AS propietario
+        FROM DUCR.REPORTES r
+        LEFT JOIN DUCR.USUARIOS u ON u.ID = r.USUARIO
+        ORDER BY r.ID DESC
+      ";
+      if ($this->db instanceof OciAdapter) {
+        $res = $this->db->query($sql);
+        return $res ? $res->fetch_all() : [];
+      } else { // PDO
+        $st = $this->db->query($sql);
+        return $st ? $st->fetchAll(PDO::FETCH_ASSOC) : [];
+      }
+    } catch (Throwable $e) {
+      $this->error = $e->getMessage();
+      return [];
+    }
+  }
+
+  /** Buscar por ID (retorna array o null) */
+  public function find(int $id): ?array {
+    try {
+      $sql = "
+        SELECT
+          ID, MASCOTA, PROVINCIA, CANTON, DISTRITO, DETALLES, FECHA, USUARIO
+        FROM DUCR.REPORTES
+        WHERE ID = :id
+        FETCH FIRST 1 ROWS ONLY
+      ";
+      $st = $this->db->prepare($sql);
+      $st->bindValue(':id', $id);
+      $st->execute();
+
+      if ($this->db instanceof OciAdapter) {
+        $row = $st->fetch();
+      } else { // PDO
+        $row = $st->fetch(PDO::FETCH_ASSOC);
+      }
+      return $row ?: null;
+    } catch (Throwable $e) {
+      $this->error = $e->getMessage();
+      return null;
+    }
+  }
+
+  /** Alias por compatibilidad con tu controlador */
+  public function findById(int $id) {
+    return $this->find($id);
+  }
+
+  /** Crear (si más adelante insertas), aquí asumo que tienes una secuencia para MASCOTAS */
+  public function create(array $d): bool {
+    try {
+      // Si tu tabla REPORTES no tiene identidad, crea una secuencia DUCR.REPORTES_SEQ y úsala aquí:
+      $sql = "
+        INSERT INTO DUCR.REPORTES
+          (ID, MASCOTA, PROVINCIA, CANTON, DISTRITO, DETALLES, FECHA, USUARIO)
+        VALUES
+          (DUCR.REPORTES_SEQ.NEXTVAL, :mascota, :provincia, :canton, :distrito, :detalles, :fecha, :usuario)
+      ";
+      $st = $this->db->prepare($sql);
+      $st->bindValue(':mascota',      $d['mascota']);
+      $st->bindValue(':provincia',        $d['provincia']);
+      $st->bindValue(':canton',        $d['canton']);
+      $st->bindValue(':distrito',     $d['distrito']);
+      $st->bindValue(':detalles',     $d['detalles']);
+      $st->bindValue(':fecha',        $d['fecha']);
+      $st->bindValue(':usuario',     (int)$d['usuario']);
+      return $st->execute();
+    } catch (Throwable $e) {
+      $this->error = $e->getMessage();
+      return false;
+    }
+  }
+
+  /** Actualizar */
+  public function update(int $id, array $d): bool {
+    try {
+      $sql = "
+        UPDATE DUCR.REPORTES
+           SET MASCOTA = :mascota,
+               PROVINCIA = :provincia,
+               CANTON = :canton,
+               DISTRITO = :distrito,
+               DETALLES = :detalles,
+               FECHA = :fecha,
+               USUARIO = :usuario              
+         WHERE ID = :id
+      ";
+      $st = $this->db->prepare($sql);
+      $st->bindValue(':mascota',      $d['mascota']);
+      $st->bindValue(':provincia',        $d['provincia']);
+      $st->bindValue(':canton',        $d['canton']);
+      $st->bindValue(':distrito', $d['distrito']);
+      $st->bindValue(':detalles',        $d['detalles']);
+      $st->bindValue(':fecha',        $d['fecha']);
+      $st->bindValue(':usuario',     (int)$d['usuario']);
+      $st->bindValue(':id',          $id);
+      return $st->execute();
+    } catch (Throwable $e) {
+      $this->error = $e->getMessage();
+      return false;
+    }
+  }
+
+  /** Eliminar */
+  public function delete(int $id): bool 
+  {
+    try {
+      if ($this->db instanceof OciAdapter) {
+        $this->db->beginTransaction();
+      }
+
+      // 1) hijos
+      $st = $this->db->prepare("DELETE FROM DUCR.ADOPCIONES WHERE MASCOTA = :id");
+      $st->bindValue(':id', $id); $st->execute();
+
+      $st = $this->db->prepare("DELETE FROM DUCR.HISTORIALMEDICO WHERE MASCOTA = :id");
+      $st->bindValue(':id', $id); $st->execute();
+
+      $st = $this->db->prepare("DELETE FROM DUCR.REPORTES WHERE MASCOTA = :id");
+      $st->bindValue(':id', $id); $st->execute();
+
+      // 2) padre
+      $st = $this->db->prepare("DELETE FROM DUCR.MASCOTAS WHERE ID = :id");
+      $st->bindValue(':id', $id);
+      $ok = $st->execute();
+
+      if ($this->db instanceof OciAdapter) {
+        $ok ? $this->db->commit() : $this->db->rollBack();
+      }
+      return $ok;
+    } catch (Throwable $e) {
+      if ($this->db instanceof OciAdapter && $this->db->inTransaction()) {
+        $this->db->rollBack();
+      }
+      $this->error = $e->getMessage();
+      return false;
+    }
+  }
+
+  /** Disponibles (TOP n) – compatible con Oracle: ordena y luego limita */
+  public function disponibles(int $limit = 50): array {
+    try {
+      // Usamos subconsulta + ROWNUM para mantener el ORDER BY
+      $sql = "
+        SELECT ID, NOMBRE, RAZA, EDAD, FOTO, ESTADO
+        FROM (
+          SELECT ID, NOMBRE, RAZA, EDAD, FOTO, ESTADO
+          FROM DUCR.MASCOTAS
+          WHERE UPPER(ESTADO) = 'DISPONIBLE'
+          ORDER BY ID DESC
+        )
+        WHERE ROWNUM <= :lim
+      ";
+      $st = $this->db->prepare($sql);
+      $st->bindValue(':lim', (int)$limit);
+      $st->execute();
+
+      if ($this->db instanceof OciAdapter) {
+        return $st->fetchAll();
+      } else { // PDO
+        return $st->fetchAll(PDO::FETCH_ASSOC);
+      }
+    } catch (Throwable $e) {
+      $this->error = $e->getMessage();
+      return [];
+    }
+  }
+}
