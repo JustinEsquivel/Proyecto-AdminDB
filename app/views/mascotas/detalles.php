@@ -1,7 +1,6 @@
 <?php include __DIR__ . '/../partials/header.php'; ?>
 
 <?php
-// Normalizar campos que podrían venir como OCILob desde Oracle
 $nombre = $m['nombre'] ?? '';
 $raza   = $m['raza']   ?? '';
 $edad   = (int)($m['edad'] ?? 0);
@@ -21,7 +20,6 @@ $src = ($foto !== '' ? $foto : 'img/placeholder.jpg');
 $idMascota = (int)($m['id'] ?? 0);
 $rol = $_SESSION['rol'] ?? 'usuario';
 
-// Badge segun estado
 $badgeClass = 'badge-secondary';
 if ($estado === 'Disponible') $badgeClass = 'badge-success';
 elseif ($estado === 'En Proceso') $badgeClass = 'badge-warning';

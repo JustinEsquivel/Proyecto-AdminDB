@@ -18,10 +18,8 @@ class AuthController {
       $userModel = new Usuario();
       $user = $userModel->findByEmail($email);
 
-      // Normaliza claves por si vienen en MAYÚSCULAS desde Oracle
       $u = is_array($user) ? array_change_key_case($user, CASE_LOWER) : null;
 
-      // Verificación: admite hash bcrypt y (temporal) texto plano
       $okPass = false;
       if ($u && isset($u['password'])) {
         $stored = (string)$u['password'];
@@ -35,7 +33,6 @@ class AuthController {
         $_SESSION['nombre']  = $u['nombre'] ?? '';
         $_SESSION['email']   = $u['email']  ?? '';
 
-        // --------- MAPEO DE ROL ROBUSTO ---------
         $rolNombre = isset($u['rol_nombre']) ? trim((string)$u['rol_nombre']) : '';
         $rolId     = isset($u['rol']) ? (int)$u['rol'] : null;
 
@@ -46,7 +43,6 @@ class AuthController {
         } else {
           $_SESSION['rol'] = 'usuario';
         }
-        // ----------------------------------------
 
         redirect_home_by_role();
       }

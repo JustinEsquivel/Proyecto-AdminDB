@@ -9,7 +9,6 @@ unset($_SESSION['form_errors'], $_SESSION['old']);
 
 $auth = new AuthController();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-  // if (function_exists('csrf_verify')) csrf_verify($_POST['_csrf'] ?? '');
   $auth->register();
   exit;
 }
@@ -33,7 +32,7 @@ include 'app/views/partials/header.php';
     <div class="card-body">
       <h3 class="mb-4">Crear cuenta</h3>
       <form id="registerForm" method="POST" novalidate>
-        <?php /* if (function_exists('csrf_token_input')) echo csrf_token_input(); */ ?>
+        <?php  ?>
         <div class="form-row">
           <div class="form-group col-md-6">
             <label>Nombre</label>

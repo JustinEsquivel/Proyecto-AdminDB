@@ -5,9 +5,8 @@ require_once __DIR__ . '/app/config/db.php';
 start_session_safe();
 if (empty($_SESSION['user_id'])) { header('Location: login.php'); exit; }
 
-$db = Database::connect(); // Puede ser PDO o OciAdapter
+$db = Database::connect(); 
 
-// ==== Helpers agnósticos (PDO u OciAdapter) ====
 function db_count($db, string $sql): int {
   try {
     if ($db instanceof OciAdapter) {
@@ -39,21 +38,18 @@ function db_fetch_all($db, string $sql): array {
   }
 }
 
-// Totales
 $totMascotas    = db_count($db, "SELECT COUNT(*) c FROM DUCR.MASCOTAS");
 $totDisponibles = db_count($db, "SELECT COUNT(*) c FROM DUCR.MASCOTAS WHERE ESTADO = 'Disponible'");
 $totAdoptadas   = db_count($db, "SELECT COUNT(*) c FROM DUCR.MASCOTAS WHERE ESTADO = 'Adoptado'");
 $totAdopciones  = db_count($db, "SELECT COUNT(*) c FROM DUCR.ADOPCIONES");
 $totReportes    = db_count($db, "SELECT COUNT(*) c FROM DUCR.REPORTES");
 
-// Ojo con la Ñ: si la tabla fue creada entre comillas con Ñ, hay que citarla igual
 try {
   $totCampanias = db_count($db, 'SELECT COUNT(*) c FROM DUCR."CAMPAÑAS"');
 } catch (Throwable $e) {
   $totCampanias = 0;
 }
 
-// Mascotas recientes (TOP 5)
 $mascotasRec = db_fetch_all($db, "
   SELECT ID AS id, NOMBRE AS nombre, RAZA AS raza, ESTADO AS estado
     FROM DUCR.MASCOTAS
@@ -61,7 +57,6 @@ $mascotasRec = db_fetch_all($db, "
    FETCH FIRST 5 ROWS ONLY
 ");
 
-// Adopciones recientes (TOP 5)
 $adopRec = db_fetch_all($db, "
   SELECT A.ID AS id,
          TO_CHAR(A.FECHA, 'YYYY-MM-DD HH24:MI:SS') AS fecha,

@@ -3,7 +3,6 @@ require_once __DIR__ . '/BaseModel.php';
 
 class Mascota extends BaseModel {
 
-  /** Lista completa con propietario */
   public function all(): array {
     try {
       $sql = "
@@ -24,7 +23,7 @@ class Mascota extends BaseModel {
       if ($this->db instanceof OciAdapter) {
         $res = $this->db->query($sql);
         return $res ? $res->fetch_all() : [];
-      } else { // PDO
+      } else { 
         $st = $this->db->query($sql);
         return $st ? $st->fetchAll(PDO::FETCH_ASSOC) : [];
       }
@@ -34,7 +33,6 @@ class Mascota extends BaseModel {
     }
   }
 
-  /** Buscar por ID (retorna array o null) */
   public function find(int $id): ?array {
     try {
       $sql = "
@@ -50,7 +48,7 @@ class Mascota extends BaseModel {
 
       if ($this->db instanceof OciAdapter) {
         $row = $st->fetch();
-      } else { // PDO
+      } else { 
         $row = $st->fetch(PDO::FETCH_ASSOC);
       }
       return $row ?: null;
@@ -60,15 +58,12 @@ class Mascota extends BaseModel {
     }
   }
 
-  /** Alias por compatibilidad con tu controlador */
   public function findById(int $id) {
     return $this->find($id);
   }
 
-  /** Crear (si más adelante insertas), aquí asumo que tienes una secuencia para MASCOTAS */
   public function create(array $d): bool {
     try {
-      // Si tu tabla MASCOTAS no tiene identidad, crea una secuencia DUCR.MASCOTAS_SEQ y úsala aquí:
       $sql = "
         INSERT INTO DUCR.MASCOTAS
           (ID, NOMBRE, RAZA, EDAD, DESCRIPCION, FOTO, ESTADO, USUARIO)
@@ -90,7 +85,6 @@ class Mascota extends BaseModel {
     }
   }
 
-  /** Actualizar */
   public function update(int $id, array $d): bool {
     try {
       $sql = "
@@ -120,7 +114,6 @@ class Mascota extends BaseModel {
     }
   }
 
-  /** Eliminar */
   public function delete(int $id): bool 
   {
     try {
@@ -156,10 +149,8 @@ class Mascota extends BaseModel {
     }
   }
 
-  /** Disponibles (TOP n) – compatible con Oracle: ordena y luego limita */
   public function disponibles(int $limit = 50): array {
     try {
-      // Usamos subconsulta + ROWNUM para mantener el ORDER BY
       $sql = "
         SELECT ID, NOMBRE, RAZA, EDAD, FOTO, ESTADO
         FROM (
@@ -176,7 +167,7 @@ class Mascota extends BaseModel {
 
       if ($this->db instanceof OciAdapter) {
         return $st->fetchAll();
-      } else { // PDO
+      } else { 
         return $st->fetchAll(PDO::FETCH_ASSOC);
       }
     } catch (Throwable $e) {

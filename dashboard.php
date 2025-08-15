@@ -5,11 +5,8 @@ require_once __DIR__ . '/app/models/Mascota.php';
 
 start_session_safe();
 
-$db = Database::connect(); // Puede ser PDO (oci:...) u OciAdapter
+$db = Database::connect(); 
 
-/**
- * Cuenta registros soportando PDO y tu OciAdapter.
- */
 function db_count_any($db, string $sql): int {
   try {
     if ($db instanceof PDO) {
@@ -18,31 +15,27 @@ function db_count_any($db, string $sql): int {
       return (int)($row['c'] ?? 0);
     }
     if ($db instanceof OciAdapter) {
-      $res = $db->query($sql);            // OciResult
+      $res = $db->query($sql);            
       if (!$res) return 0;
-      $row = $res->fetch_assoc();         // ['c' => N]
+      $row = $res->fetch_assoc();        
       return (int)($row['c'] ?? 0);
     }
     return 0;
   } catch (Throwable $e) {
-    // error_log($e->getMessage());
     return 0;
   }
 }
 
-/* === Totales (usar esquema DUCR) === */
 $totMascotas    = db_count_any($db, "SELECT COUNT(*) c FROM DUCR.MASCOTAS");
 $totAdopciones  = db_count_any($db, "SELECT COUNT(*) c FROM DUCR.ADOPCIONES");
 $totVoluntarios = db_count_any($db, "SELECT COUNT(*) c FROM DUCR.VOLUNTARIOS WHERE ESTADO = 'Activo'");
 
-/* OJO: la tabla lleva una Ñ. Conservar comillas dobles. */
 try {
 $totCampanias = db_count_any($db, "SELECT COUNT(*) c FROM DUCR.\"CAMPAÑAS\" WHERE ESTADO = 'Activa'");
 } catch (Throwable $e) {
   $totCampanias = 0;
 }
 
-/* Lista de mascotas disponibles */
 $mModel      = new Mascota();
 $disponibles = $mModel->disponibles(9);
 

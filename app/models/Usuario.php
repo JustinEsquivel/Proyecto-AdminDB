@@ -42,8 +42,8 @@ class Usuario extends BaseModel {
 
         $st->bindValue(':nombre',   $d['nombre']);
         $st->bindValue(':apellido', $d['apellido']);
-        $st->bindValue(':email',    strtolower($d['email'])); // normaliza a minúsculas
-        $st->bindValue(':password', $d['password']); // ya debe venir hasheada
+        $st->bindValue(':email',    strtolower($d['email'])); 
+        $st->bindValue(':password', $d['password']); 
         $st->bindValue(':telefono', $d['telefono']);
         $st->bindValue(':rol',      (int)$d['rol'], PDO::PARAM_INT);
 

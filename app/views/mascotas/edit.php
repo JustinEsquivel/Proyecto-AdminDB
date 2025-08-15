@@ -6,7 +6,6 @@
   </div>
 
   <?php
-  // Helper: convierte OCILob a string si hace falta
   $toStr = function($v) {
     if ($v instanceof OCILob) return $v->load();
     return (string)($v ?? '');

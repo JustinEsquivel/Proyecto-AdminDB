@@ -1,19 +1,16 @@
 <?php include __DIR__ . '/../partials/header.php'; ?>
 
 <?php
-// Helper: convierte OCILob a string si hace falta
 $toStr = function($v) {
   if ($v instanceof OCILob) return $v->load();
   return (string)($v ?? '');
 };
 
-// Helper: calcula la clase del badge según el estado (tolera tilde/no tilde y may/min)
 $badgeForEstado = function($estadoRaw) use ($toStr) {
   $estado = trim($toStr($estadoRaw));
   if ($estado === '') return 'badge-secondary';
 
   $up = mb_strtoupper($estado, 'UTF-8');
-  // Normaliza "OBSERVACIÓN" -> "OBSERVACION"
   $upNoTilde = str_replace(['Á','É','Í','Ó','Ú'], ['A','E','I','O','U'], $up);
 
   if ($upNoTilde === 'DISPONIBLE')               return 'badge-success';

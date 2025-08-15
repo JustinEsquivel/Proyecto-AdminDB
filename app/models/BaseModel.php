@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../config/db.php'; // Debe devolver PDO
+require_once __DIR__ . '/../config/db.php'; 
 
 abstract class BaseModel {
   /** @var PDO */
@@ -7,7 +7,7 @@ abstract class BaseModel {
   protected $error = '';
 
   public function __construct() {
-    $this->db = Database::connect(); // Debe ser PDO
+    $this->db = Database::connect(); 
   }
 
   public function getError(): string {

@@ -2,13 +2,12 @@
 
 class Database {
   public static function connect(): OciAdapter {
-    $host    = '127.0.0.1';   // cambia si tu Oracle está en otro host
-    $port    = 1521;          // puerto Oracle
-    $service = 'orcl';          // SERVICE_NAME (p. ej. XE, XEPDB1)
-    $user    = 'DUCR';        // esquema/usuario
+    $host    = '127.0.0.1';   
+    $port    = 1521;          
+    $service = 'orcl';          
+    $user    = 'DUCR';        
     $pass    = '123';
 
-    // Cadena de conexión con SERVICE_NAME
     $connStr = "(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=$host)(PORT=$port))(CONNECT_DATA=(SERVICE_NAME=$service)))";
 
     $conn = @oci_connect($user, $pass, $connStr, 'AL32UTF8');
@@ -28,7 +27,6 @@ class OciAdapter {
 
   public function __construct($conn) { $this->conn = $conn; }
 
-  /** Consulta directa (sin binds). Devuelve OciResult con rows ya bufferizados. */
   public function query(string $sql): OciResult|false {
     $stid = @oci_parse($this->conn, $sql);
     if (!$stid) return false;
@@ -36,19 +34,15 @@ class OciAdapter {
     if (!@oci_execute($stid, $mode)) return false;
 
     $rows = [];
-    // Para SELECT recogemos filas; para DML devolvemos result vacío
     if ($this->isSelect($sql)) {
       while ($r = oci_fetch_assoc($stid)) {
-        // normaliza claves a minúsculas para que vistas sigan usando $row['nombre']
         $rows[] = array_change_key_case($r, CASE_LOWER);
       }
     }
-    // Libera el statement real y devolvemos un resultado "bufferizado"
     oci_free_statement($stid);
     return new OciResult($rows);
   }
 
-  /** Preparar statement con placeholders nombrados (:id, :nombre, ...) */
   public function prepare(string $sql): OciStatement|false {
     $stid = @oci_parse($this->conn, $sql);
     if (!$stid) return false;
@@ -74,7 +68,6 @@ class OciAdapter {
 
   public function inTransaction(): bool { return $this->inTx; }
 
-  /** Utilidad: detectar si parece SELECT (muy simple) */
   private function isSelect(string $sql): bool {
     return preg_match('/^\s*SELECT\b/i', $sql) === 1;
   }
@@ -96,16 +89,11 @@ class OciStatement {
     $this->adapter = $adapter;
   }
 
-  /** Bind de valor por nombre, ej: bindValue(':id', 10) */
   public function bindValue(string $name, $value, int $type = null): bool {
-    // Asegura que el placeholder empiece con :
     if ($name[0] !== ':') $name = ':' . $name;
-    // Para CLOB grandes puedes usar OCI_B_CLOB; aquí manejamos VARCHAR/NUMBER genéricos
     $this->binds[$name] = $value;
     return true;
   }
-
-  /** Ejecuta; devuelve true/false. */
   public function execute(array $params = []): bool {
     foreach ($params as $k => $v) {
       $key = ($k[0] === ':') ? $k : ':' . $k;
@@ -116,7 +104,6 @@ class OciStatement {
     $this->ociVars = [];
     }
     foreach ($this->binds as $k => $v) {
-    // crear una variable única por bind y guardarla para mantener la referencia viva
     $this->ociVars[$k] = $v;
     if (!@oci_bind_by_name($this->stid, $k, $this->ociVars[$k], -1)) {
         $err = oci_error($this->stid);
@@ -134,13 +121,10 @@ class OciStatement {
     }
 
 
-  /** Primera fila (assoc) */
   public function fetch(): array|null {
     $r = oci_fetch_assoc($this->stid);
     return $r ? array_change_key_case($r, CASE_LOWER) : null;
   }
-
-  /** Todas las filas (assoc) */
   public function fetchAll(): array {
     $rows = [];
     while ($r = oci_fetch_assoc($this->stid)) {
@@ -149,7 +133,6 @@ class OciStatement {
     return $rows;
   }
 
-  /** Compat: para código que espera ->get_result()->fetch_assoc() (mysqli-style) */
   public function get_result(): OciResult {
     return new OciResult($this->fetchAll());
   }
@@ -170,17 +153,11 @@ class OciResult implements IteratorAggregate {
     $this->rows = $rows;
     $this->num_rows = count($rows);
   }
-
-  /** Siguiente fila estilo mysqli */
   public function fetch_assoc(): array|null {
     if ($this->pos >= $this->num_rows) return null;
     return $this->rows[$this->pos++];
   }
-
-  /** Todas las filas estilo mysqli */
   public function fetch_all($mode = null): array { return $this->rows; }
-
-  /** Permite foreach directo sobre el resultado */
   public function getIterator(): Traversable {
     foreach ($this->rows as $r) yield $r;
   }
